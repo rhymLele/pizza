@@ -7,18 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
-
-// Map HTTP status code → error code string để client nhận diện lỗi mà không phụ thuộc vào số.
-const ERROR_CODE_MAP: Record<number, string> = {
-  400: 'BAD_REQUEST',
-  401: 'UNAUTHORIZED',
-  403: 'FORBIDDEN',
-  404: 'NOT_FOUND',
-  409: 'CONFLICT',
-  422: 'UNPROCESSABLE_ENTITY',
-  429: 'TOO_MANY_REQUESTS',
-  500: 'INTERNAL_SERVER_ERROR',
-};
+import { HTTP_ERROR_CODE_MAP } from '../constants/error-codes.constant.js';
 
 // @Catch() không truyền argument → bắt MỌI exception, kể cả lỗi không phải HttpException.
 // Nếu chỉ viết @Catch(HttpException) thì lỗi DB, lỗi runtime sẽ không bị bắt → trả HTML 500 mặc định của Express.
@@ -50,7 +39,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       this.logger.error(exception.message, exception.stack);
     }
 
-    const code = ERROR_CODE_MAP[status] ?? 'ERROR';
+    const code = HTTP_ERROR_CODE_MAP[status] ?? 'ERROR';
 
     // Trả cùng format với TransformInterceptor nhưng status: false và data: null.
     // Client chỉ cần xử lý một format duy nhất cho cả success và error.

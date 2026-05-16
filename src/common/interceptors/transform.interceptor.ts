@@ -2,25 +2,15 @@ import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nes
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import type { ApiResponse } from '../interfaces/api-response.interface.js';
 
 // Key dùng để lưu/đọc metadata giữa @ResponseMessage decorator và interceptor này.
 // Phải export để decorator dùng cùng key — nếu dùng string literal riêng sẽ không đọc được.
 export const RESPONSE_MESSAGE_KEY = 'response_message';
 
-export interface MessageItem {
-  code: string;   // mã kết quả, ví dụ: 'SUCCESS', 'NOT_FOUND'
-  message: string; // mô tả người dùng có thể đọc
-}
-
-// Định nghĩa shape chuẩn cho mọi response trả về client.
-// Generic <T> để TypeScript biết kiểu của field data.
-export interface ApiResponse<T> {
-  message: MessageItem;
-  reason: string;   // tóm tắt ngắn gọn kết quả
-  status: boolean;  // true = thành công, false = lỗi (lỗi thường bị ExceptionFilter bắt trước)
-  data: T;
-  count: number;    // số lượng item trong data (hỗ trợ phân trang phía client)
-}
+// Interface đã chuyển sang common/interfaces/api-response.interface.ts để tránh circular dependency.
+// Re-export để các file đang import từ đây không cần đổi import path.
+export type { ApiResponse, MessageItem } from '../interfaces/api-response.interface.js';
 
 // Interceptor chạy sau Guard, trước khi response gửi đi client.
 // Nhiệm vụ: bọc output của mọi controller thành ApiResponse chuẩn.
