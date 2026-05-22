@@ -1,41 +1,52 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Role } from '../common/enums/role.enum.js';
+import type { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { User } from './entities/user.entity.js';
 
-// Tầng duy nhất được phép trực tiếp query DB liên quan đến User.
-// AuthService và JwtStrategy gọi qua đây thay vì inject Repository<User> trực tiếp —
-// giúp tách biệt data access khỏi business logic, dễ mock khi viết unit test.
 @Injectable()
 export class UsersService {
-  // @InjectRepository(User): NestJS lấy Repository<User> từ IoC container.
-  // Repository này chỉ tồn tại sau khi TypeOrmModule.forFeature([User]) được khai báo trong UsersModule.
   constructor(
     @InjectRepository(User)
-    private readonly usersRepository: Repository<User>,
+    private readonly repo: Repository<User>,
   ) {}
 
-  // Dùng để kiểm tra email đã tồn tại chưa (register) và lấy user để so sánh password (login).
   findByEmail(email: string): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { email } });
+    return this.repo.findOne({ where: { email } });
   }
 
-  // Dùng trong JwtStrategy.validate() để xác nhận user vẫn còn tồn tại trong DB
-  // sau khi token được giải mã — tránh trường hợp token hợp lệ nhưng user đã bị xóa.
   findById(id: string): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { id } });
+    return this.repo.findOne({ where: { id } });
   }
 
-  // create() chỉ tạo instance trong memory, save() mới thực sự INSERT vào DB.
-  // Tách ra 2 bước để TypeORM có thể apply các hook (@BeforeInsert nếu có).
+  async findPublicProfile(id: string): Promise<Omit<User, 'password' | 'refreshToken'>> {
+    const user = await this.repo.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+    const { password: _, refreshToken: __, ...profile } = user;
+    return profile;
+  }
+
   async create(email: string, hashedPassword: string, name?: string): Promise<User> {
-    const user = this.usersRepository.create({ email, password: hashedPassword, name });
-    return this.usersRepository.save(user);
+    const user = this.repo.create({ email, password: hashedPassword, name });
+    return this.repo.save(user);
   }
 
-  // Lưu hash của refresh token sau mỗi lần login/register.
-  // Dùng update() thay vì save() để tránh load toàn bộ entity — chỉ cần update 1 field.
   async updateRefreshToken(id: string, hashedToken: string | null): Promise<void> {
-    await this.usersRepository.update(id, { refreshToken: hashedToken });
+    await this.repo.update(id, { refreshToken: hashedToken });
+  }
+
+  async updateProfile(id: string, dto: UpdateProfileDto): Promise<Omit<User, 'password' | 'refreshToken'>> {
+    await this.repo.update(id, dto);
+    return this.findPublicProfile(id);
+  }
+
+  // Upgrades a student to teacher role. Throws if already a teacher.
+  async becomeTeacher(id: string): Promise<Omit<User, 'password' | 'refreshToken'>> {
+    const user = await this.repo.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+    if (user.role === Role.TEACHER) throw new ConflictException('Tài khoản đã là giáo viên');
+    await this.repo.update(id, { role: Role.TEACHER });
+    return this.findPublicProfile(id);
   }
 }

@@ -33,8 +33,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload) {
     const user = await this.usersService.findById(payload.sub);
     if (!user) throw new UnauthorizedException();
-    // Strip password trước khi gán vào req.user — tránh password lọt vào response.
-    const { password: _, ...result } = user;
+    // Strip sensitive fields before setting on req.user.
+    const { password: _, refreshToken: __, ...result } = user;
     return result;
   }
 }
